@@ -2,11 +2,11 @@
 
 An interactive GIS analysis of the relationship between public library access and four-year high school graduation rates across all 36 Oregon counties, using 2024–25 Oregon Department of Education data.
 
-**[View Live Map →](https://[your-username].github.io/oregon-library-graduation/)**
+**[View Live Map](https://alexraugeo.github.io/oregon-library-graduation/)**
 
 ---
 
-## Overview
+# Overview
 
 **Research question:** Do counties with more libraries tend to have higher high school graduation rates?
 
@@ -60,32 +60,11 @@ This project joins three datasets — Oregon county boundaries, the Oregon State
 ## Methodology
 
 **Unit of analysis:** Oregon county (n = 36)
-
 **Graduation rate:** The *4-year cohort graduation rate* counts students who earned an Oregon diploma within four years of entering ninth grade, divided by the adjusted cohort (entrants minus transfers out, plus transfers in). This is the standard ODE metric and excludes extended diplomas and GED completers from the numerator.
-
 **Student group:** All analyses use the "All Students" aggregate unless noted in the demographic breakdown panel. Demographic subgroup rates are suppressed by ODE when the cohort is fewer than 10 students, displayed as "—" in the map.
-
 **Library count:** Sum of all library features in the Oregon Library Directory for each county, regardless of type (public, academic, special, tribal, volunteer). Libraries per 1,000 students uses the dropout file's "Fall Membership" (enrolled students) as the denominator.
-
 **Spatial join:** County boundaries joined to library and education data using normalized county name string matching (plain county name, case-insensitive).
-
 **Correlation:** Pearson r computed client-side over the 36 county data points displayed in the scatter plot. Counties with suppressed graduation data are excluded (none in 2024–25).
-
----
-
-## Repository Structure
-
-```
-oregon-library-graduation/
-├── index.html                              # Interactive map (Leaflet + Chart.js)
-├── oregon_counties_enriched.geojson        # County polygons + joined statistics
-├── process_data.py                         # Data processing script (generates above)
-├── Oregon_Library_Directory_20260325.geojson  # Library point features (source)
-├── Oregon_Counties_map_20260325.geojson    # County boundary polygons (source)
-├── cohortmediafile2024-2025.xlsx           # ODE cohort graduation rates (source)
-├── dropouttables2024-2025.xlsx             # ODE dropout rates (source)
-└── README.md
-```
 
 ---
 
