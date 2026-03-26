@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oregon Libraries &amp; High School Graduation Rates | 2024–25</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    /* ── Reset & tokens ──────────────────────────────────────── */
+    :root {
+      --navy:   #1e3a5f;
+      --blue:   #2196F3;
+      --green:  #27ae60;
+      --bg:     #f0f2f5;
+      --card:   #ffffff;
+      --text:   #2d3436;
+      --muted:  #636e72;
+      --border: #dde3ea;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    header h1 { font-size: 1rem; font-weight: 700; white-space: nowrap; }
+    header .sep { color: rgba(255,255,255,0.35); }
+    header .subtitle { font-size: 0.78rem; color: rgba(255,255,255,0.7); }
+    header .badge {
+      margin-left: auto;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+
+    /* ── Main layout ─────────────────────────────────────────── */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Map panel ───────────────────────────────────────────── */
+    #map-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+      background: #e8edf2;
+    }
+
+    /* Loading overlay */
+    #loading {
+      position: absolute;
+      inset: 0;
+      background: rgba(248, 249, 250, 0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      gap: 12px;
+      font-size: 0.88rem;
+      color: var(--navy);
+    }
+    #loading code {
+      background: #f1f3f5;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .spinner {
+      width: 38px;
+      height: 38px;
+      border: 4px solid #dde3ea;
+      border-top-color: var(--navy);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Legend (overlaid on map) */
+    #legend {
+      display: none;
+      position: absolute;
+      bottom: 30px;
+      left: 10px;
+      z-index: 800;
+      background: var(--card);
+      padding: 10px 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      font-size: 0.72rem;
+      max-width: 155px;
+      line-height: 1.4;
+    }
+    .legend-section { margin-bottom: 8px; }
+    .legend-section:last-child { margin-bottom: 0; }
+    .legend-head {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+    .legend-swatch {
+      width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0;
+    }
+    .legend-dot {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.2);
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────── */
+    #sidebar {
+      width: 310px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-left: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    /* County info panel */
+    #county-info {
+      flex-shrink: 0;
+      max-height: 55%;
+      overflow-y: auto;
+      padding: 14px 14px 10px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    #county-info::-webkit-scrollbar { width: 5px; }
+    #county-info::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+    /* Scatter plot area */
+    #scatter-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px 12px 12px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    #scatter-controls {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 6px;
+      flex-shrink: 0;
+    }
+    .toggle-btn {
+      padding: 3px 9px;
+      font-size: 0.7rem;
+      border: 1px solid #c5cdd6;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .toggle-btn.active {
+      background: var(--navy);
+      color: #fff;
+      border-color: var(--navy);
+    }
+    #scatter-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      margin-bottom: 4px;
+    }
+    #chart-container {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+    #scatter-chart { width: 100% !important; height: 100% !important; }
+
+    /* ── Info panel typography ───────────────────────────────── */
+    .info-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 2px;
+    }
+    .info-sub {
+      font-size: 0.73rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .back-btn {
+      display: inline-block;
+      margin-bottom: 8px;
+      font-size: 0.7rem;
+      color: var(--navy);
+      cursor: pointer;
+      text-decoration: underline;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+    .back-btn:hover { color: var(--green); }
+
+    /* Stat boxes */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .stat-box {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 7px 9px;
+      border-left: 3px solid #ccc;
+    }
+    .stat-box.good { border-left-color: #16a34a; }
+    .stat-box.warn { border-left-color: #d97706; }
+    .stat-box.bad  { border-left-color: #dc2626; }
+    .stat-box .lbl {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .stat-box .val {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 1px;
+    }
+    .stat-box.good .val { color: #16a34a; }
+    .stat-box.warn .val { color: #d97706; }
+    .stat-box.bad  .val { color: #dc2626; }
+    .stat-box .sub {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    /* Section headers */
+    .sec-head {
+      font-size: 0.64rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      border-top: 1px solid #eee;
+      padding-top: 9px;
+      margin-top: 2px;
+      margin-bottom: 6px;
+    }
+
+    /* Data tables */
+    .dtable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+    .dtable td { padding: 3px 5px; }
+    .dtable td:last-child { text-align: right; font-weight: 600; }
+    .dtable tr:nth-child(even) td { background: #f7f8fa; }
+    .null-val { color: #bbb; font-weight: normal !important; }
+
+    /* Overview cards */
+    .ov-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .ov-card {
+      background: var(--bg);
+      border-left: 3px solid var(--navy);
+      border-radius: 5px;
+      padding: 7px 9px;
+    }
+    .ov-card .lbl {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .ov-card .val {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--navy);
+      margin-top: 2px;
+    }
+    .hint {
+      font-size: 0.73rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 8px;
+      font-style: italic;
+    }
+
+    /* ── Responsive ──────────────────────────────────────────── */
+    @media (max-width: 680px) {
+      header h1 { font-size: 0.85rem; }
+      header .subtitle { display: none; }
+      main { flex-direction: column; }
+      #sidebar {
+        width: 100%;
+        max-height: 46%;
+        border-left: none;
+        border-top: 1px solid var(--border);
+      }
+      #county-info { max-height: 55%; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Oregon Libraries &amp; High School Graduation Rates</h1>
+  <span class="sep">|</span>
+  <span class="subtitle">County-level GIS analysis · all 36 counties</span>
+  <span class="badge">2024–25 Academic Year</span>
+</header>
+
+<main>
+
+  <!-- ── Map panel ─────────────────────────────────────────── -->
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <!-- Loading overlay -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <div>Loading county and library data…</div>
+    </div>
+
+    <!-- Map legend -->
+    <div id="legend">
+      <div class="legend-section">
+        <div class="legend-head">4-Year Graduation Rate</div>
+        <div class="legend-row"><div class="legend-swatch" style="background:#d73027"></div>&lt; 65%</div>
+        <div class="legend-row"><div class="legend-swatch" style="background:#fc8d59"></div>65 – 72%</div>
+        <div class="legend-row"><div class="legend-swatch" style="background:#fee08b"></div>72 – 79%</div>
+        <div class="legend-row"><div class="legend-swatch" style="background:#d9ef8b"></div>79 – 85%</div>
+        <div class="legend-row"><div class="legend-swatch" style="background:#91cf60"></div>85 – 91%</div>
+        <div class="legend-row"><div class="legend-swatch" style="background:#1a9850"></div>≥ 91%</div>
+        <div class="legend-row"><div class="legend-swatch" style="background:#bdbdbd"></div>No data</div>
+      </div>
+      <div class="legend-section">
+        <div class="legend-head">Library Type</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#2196F3"></div>Public</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#FF9800"></div>Academic</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#9C27B0"></div>Special</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#4CAF50"></div>Tribal</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#607D8B"></div>Volunteer</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Sidebar ────────────────────────────────────────────── -->
+  <div id="sidebar">
+    <div id="county-info"><!-- populated by JS --></div>
+
+    <div id="scatter-wrap">
+      <div id="scatter-controls">
+        <button class="toggle-btn active" id="btn-raw"  onclick="setScatterMode('raw')">Library Count</button>
+        <button class="toggle-btn"        id="btn-norm" onclick="setScatterMode('norm')">Per 1k Students</button>
+      </div>
+      <div id="scatter-label"></div>
+      <div id="chart-container">
+        <canvas id="scatter-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Libraries -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════════
+
+const STATE_GRAD_RATE = 83.024; // Oregon 2024-25 statewide 4-yr graduation rate
+
+// 6-class RdYlGn choropleth (low = red, high = green)
+const BREAKS = [65, 72, 79, 85, 91];
+const COLORS = ['#d73027','#fc8d59','#fee08b','#d9ef8b','#91cf60','#1a9850'];
+
+// Library point colors by type
+const LIB_COLORS = {
+  'Public':     '#2196F3',
+  'Academic':   '#FF9800',
+  'Special':    '#9C27B0',
+  'Tribal':     '#4CAF50',
+  'Volunteer':  '#607D8B',
+  'County law': '#F44336',
+};
+
+// ══════════════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════════════
+
+function getColor(rate) {
+  if (rate == null) return '#bdbdbd';
+  for (let i = 0; i < BREAKS.length; i++) {
+    if (rate < BREAKS[i]) return COLORS[i];
+  }
+  return COLORS[COLORS.length - 1];
+}
+
+function fmt(val, dec = 1) {
+  return val == null ? '—' : Number(val).toFixed(dec);
+}
+
+function fmtPct(val, dec = 1) {
+  return val == null ? '—' : Number(val).toFixed(dec) + '%';
+}
+
+function pearsonR(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  const num = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0);
+  const dx  = Math.sqrt(xs.reduce((s, x) => s + (x - mx) ** 2, 0));
+  const dy  = Math.sqrt(ys.reduce((s, y) => s + (y - my) ** 2, 0));
+  return (dx && dy) ? num / (dx * dy) : 0;
+}
+
+function linReg(xs, ys) {
+  const n = xs.length;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  const denom = xs.reduce((s, x) => s + (x - mx) ** 2, 0);
+  if (!denom) return { m: 0, b: my };
+  const m = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / denom;
+  return { m, b: my - m * mx };
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAP SETUP
+// ══════════════════════════════════════════════════════════════
+
+const map = L.map('map', {
+  center: [44.0, -120.4],
+  zoom: 7,
+  zoomSnap: 0.25,
+  preferCanvas: false,
+});
+
+L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors © <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }
+).addTo(map);
+
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+
+let countyLayer    = null;
+let libBubbleLayer = null;
+let libPointLayer  = null;
+let selectedLayer  = null;
+let scatterChart   = null;
+let scatterMode    = 'raw';
+let allCountyProps = [];  // for scatter plot
+
+// ══════════════════════════════════════════════════════════════
+// LOAD DATA
+// ══════════════════════════════════════════════════════════════
+
+Promise.all([
+  fetch('data/oregon_counties_enriched.geojson').then(r => {
+    if (!r.ok) throw new Error('GeoJSON fetch failed: ' + r.statusText);
+    return r.json();
+  }),
+  fetch('data/Oregon_Library_Directory_20260325.geojson').then(r => {
+    if (!r.ok) throw new Error('Library GeoJSON fetch failed: ' + r.statusText);
+    return r.json();
+  }),
+]).then(([countiesGeo, libsGeo]) => {
+  allCountyProps = countiesGeo.features.map(f => f.properties);
+
+  buildCountyLayer(countiesGeo);
+  buildLibBubbleLayer(countiesGeo);
+  buildLibPointLayer(libsGeo);
+
+  // Layer control (overlays only, no base layer toggle)
+  const overlays = {
+    '<span title="County choropleth colored by 4-year graduation rate">Graduation Rate</span>':          countyLayer,
+    '<span title="Proportional circles sized by library count per county">Library Count Bubbles</span>': libBubbleLayer,
+    '<span title="Individual library locations, colored by type">Library Locations</span>':              libPointLayer,
+  };
+  L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+
+  // Fit map to Oregon
+  map.fitBounds(countyLayer.getBounds(), { padding: [10, 10] });
+
+  buildScatterPlot();
+  showOverview();
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('legend').style.display  = 'block';
+
+}).catch(err => {
+  document.getElementById('loading').innerHTML = `
+    <div style="padding:24px;text-align:center;max-width:340px">
+      <strong style="color:#dc2626">Could not load data files.</strong><br><br>
+      This page requires a local HTTP server to load GeoJSON files.
+      Open a terminal in this folder and run:<br><br>
+      <code>python3 -m http.server 8000</code><br><br>
+      Then visit <code>http://localhost:8000</code>
+    </div>`;
+  console.error(err);
+});
+
+// ══════════════════════════════════════════════════════════════
+// COUNTY CHOROPLETH LAYER
+// ══════════════════════════════════════════════════════════════
+
+function countyStyle(feature) {
+  return {
+    fillColor:   getColor(feature.properties.grad_rate_4yr),
+    fillOpacity: 0.75,
+    weight:      1,
+    color:       '#ffffff',
+  };
+}
+
+function buildCountyLayer(geo) {
+  countyLayer = L.geoJSON(geo, {
+    style: countyStyle,
+    onEachFeature(feature, layer) {
+      const p = feature.properties;
+
+      layer.bindTooltip(
+        `<strong>${p.county_name} County</strong><br>
+         Graduation rate: ${fmtPct(p.grad_rate_4yr)}<br>
+         Libraries: ${p.library_count}`,
+        { sticky: true, opacity: 0.95 }
+      );
+
+      layer.on('mouseover', function () {
+        if (this !== selectedLayer) {
+          this.setStyle({ weight: 2, color: '#555', fillOpacity: 0.88 });
+        }
+      });
+      layer.on('mouseout', function () {
+        if (this !== selectedLayer) {
+          countyLayer.resetStyle(this);
+        }
+      });
+      layer.on('click', function (e) {
+        L.DomEvent.stopPropagation(e);
+        selectCounty(feature, this);
+      });
+    },
+  }).addTo(map);
+
+  // Click on map background deselects
+  map.on('click', () => {
+    if (selectedLayer) {
+      countyLayer.resetStyle(selectedLayer);
+      selectedLayer = null;
+      showOverview();
+      highlightScatterPoint(null);
+    }
+  });
+}
+
+function selectCounty(feature, layer) {
+  // Same county clicked twice → deselect
+  if (selectedLayer === layer) {
+    countyLayer.resetStyle(layer);
+    selectedLayer = null;
+    showOverview();
+    highlightScatterPoint(null);
+    return;
+  }
+  if (selectedLayer) countyLayer.resetStyle(selectedLayer);
+  layer.setStyle({ weight: 3, color: '#1e3a5f', fillOpacity: 0.92 });
+  layer.bringToFront();
+  selectedLayer = layer;
+  showCountyDetail(feature.properties);
+  highlightScatterPoint(feature.properties.county_name);
+}
+
+// ══════════════════════════════════════════════════════════════
+// LIBRARY BUBBLE LAYER  (proportional circles at county centroids)
+// ══════════════════════════════════════════════════════════════
+
+function buildLibBubbleLayer(geo) {
+  libBubbleLayer = L.layerGroup();
+
+  geo.features.forEach(feat => {
+    const p = feat.properties;
+    if (!p.library_count) return;
+
+    // Centroid approximated from bounding box
+    const bounds = L.geoJSON(feat).getBounds();
+    const center = bounds.getCenter();
+    const radius = Math.max(5, Math.sqrt(p.library_count) * 3.8);
+
+    const circle = L.circleMarker(center, {
+      radius,
+      fillColor:   '#2196F3',
+      fillOpacity: 0.40,
+      weight:      1.5,
+      color:       '#1565C0',
+    });
+    circle.bindTooltip(
+      `<strong>${p.county_name} County</strong><br>${p.library_count} librar${p.library_count === 1 ? 'y' : 'ies'}`,
+      { sticky: true }
+    );
+    libBubbleLayer.addLayer(circle);
+  });
+
+  libBubbleLayer.addTo(map);
+}
+
+// ══════════════════════════════════════════════════════════════
+// INDIVIDUAL LIBRARY POINTS LAYER
+// ══════════════════════════════════════════════════════════════
+
+function buildLibPointLayer(geo) {
+  libPointLayer = L.geoJSON(geo, {
+    pointToLayer(feat, latlng) {
+      const color = LIB_COLORS[feat.properties.type_of_library] || '#90A4AE';
+      return L.circleMarker(latlng, {
+        radius:      5,
+        fillColor:   color,
+        fillOpacity: 0.88,
+        weight:      1,
+        color:       '#fff',
+      });
+    },
+    onEachFeature(feat, layer) {
+      const p = feat.properties;
+      const siteLink = p.website
+        ? `<a href="${p.website}" target="_blank" rel="noopener noreferrer">${p.website}</a>`
+        : '—';
+      layer.bindPopup(`
+        <strong>${p.libraryname || '—'}</strong><br>
+        <em style="color:#636e72">${p.type_of_library || ''}</em><br>
+        ${[p.physical_city, 'OR', p.physical_zip].filter(Boolean).join(' ')}<br>
+        ${p.phone_number ? p.phone_number + '<br>' : ''}
+        ${siteLink}
+        ${p.library_system_membership ? `<br><span style="font-size:0.75em;color:#636e72">${p.library_system_membership}</span>` : ''}
+      `, { maxWidth: 260 });
+      layer.bindTooltip(p.libraryname || '—', { sticky: true });
+    },
+  });
+  // Not added to map by default — user toggles via layer control
+}
+
+// ══════════════════════════════════════════════════════════════
+// SCATTER PLOT
+// ══════════════════════════════════════════════════════════════
+
+function getPlotData(mode) {
+  return allCountyProps
+    .filter(p => p.grad_rate_4yr != null)
+    .map(p => ({
+      x:     mode === 'norm' ? (p.libraries_per_1k_students ?? 0) : p.library_count,
+      y:     p.grad_rate_4yr,
+      label: p.county_name,
+    }));
+}
+
+function buildScatterPlot() {
+  const data = getPlotData(scatterMode);
+  const xs   = data.map(d => d.x);
+  const ys   = data.map(d => d.y);
+  const r    = pearsonR(xs, ys);
+  const reg  = linReg(xs, ys);
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs) * 1.05;
+
+  const rLabel  = r != null ? `r = ${r.toFixed(2)}` : '';
+  const xLabel  = scatterMode === 'norm' ? 'Libraries per 1,000 Students' : 'Library Count';
+  document.getElementById('scatter-label').innerHTML =
+    `Libraries vs. Graduation Rate &nbsp;
+     <span style="color:#ef4444;font-weight:600">${rLabel}</span>`;
+
+  const ctx = document.getElementById('scatter-chart').getContext('2d');
+  scatterChart = new Chart(ctx, {
+    data: {
+      datasets: [
+        {
+          type:            'scatter',
+          label:           'County',
+          data,
+          backgroundColor: data.map(() => 'rgba(30,58,95,0.6)'),
+          pointRadius:     data.map(() => 6),
+          pointHoverRadius: 9,
+          order:           1,
+        },
+        {
+          type:        'line',
+          label:       'Trend',
+          data:        [{ x: xMin, y: reg.m * xMin + reg.b }, { x: xMax, y: reg.m * xMax + reg.b }],
+          borderColor: '#ef4444',
+          borderWidth: 1.5,
+          borderDash:  [5, 4],
+          pointRadius: 0,
+          fill:        false,
+          order:       2,
+        },
+      ],
+    },
+    options: {
+      responsive:          true,
+      maintainAspectRatio: false,
+      animation:           false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label(ctx) {
+              if (ctx.datasetIndex !== 0) return null;
+              const d = ctx.raw;
+              return `${d.label}: ${d.y.toFixed(1)}%`;
+            },
+            title: () => '',
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: { display: true, text: xLabel, font: { size: 10 } },
+          ticks: { font: { size: 9 } },
+          min:   0,
+        },
+        y: {
+          title: { display: true, text: 'Graduation Rate (%)', font: { size: 10 } },
+          ticks: { font: { size: 9 } },
+          min:   50,
+          max:   100,
+        },
+      },
+    },
+  });
+}
+
+function setScatterMode(mode) {
+  scatterMode = mode;
+  document.getElementById('btn-raw').classList.toggle('active',  mode === 'raw');
+  document.getElementById('btn-norm').classList.toggle('active', mode === 'norm');
+  if (scatterChart) { scatterChart.destroy(); scatterChart = null; }
+  buildScatterPlot();
+}
+
+function highlightScatterPoint(countyName) {
+  if (!scatterChart) return;
+  const ds = scatterChart.data.datasets[0];
+  ds.backgroundColor = ds.data.map(d =>
+    countyName && d.label === countyName ? '#ef4444' : 'rgba(30,58,95,0.6)'
+  );
+  ds.pointRadius = ds.data.map(d =>
+    countyName && d.label === countyName ? 10 : 6
+  );
+  scatterChart.update('none');
+}
+
+// ══════════════════════════════════════════════════════════════
+// SIDEBAR – OREGON OVERVIEW
+// ══════════════════════════════════════════════════════════════
+
+function showOverview() {
+  document.getElementById('county-info').innerHTML = `
+    <div class="info-title">Oregon Overview</div>
+    <div class="info-sub">2024–25 · 36 counties · 4-year cohort graduation</div>
+    <div class="ov-grid">
+      <div class="ov-card">
+        <div class="lbl">Statewide Grad Rate</div>
+        <div class="val">83.0%</div>
+      </div>
+      <div class="ov-card">
+        <div class="lbl">Total Libraries</div>
+        <div class="val">360</div>
+      </div>
+      <div class="ov-card">
+        <div class="lbl">Highest Grad Rate</div>
+        <div class="val" style="font-size:0.78rem">Crook Co. 97.8%</div>
+      </div>
+      <div class="ov-card">
+        <div class="lbl">Lowest Grad Rate</div>
+        <div class="val" style="font-size:0.78rem;color:#dc2626">Grant Co. 56.7%</div>
+      </div>
+      <div class="ov-card">
+        <div class="lbl">Most Libraries</div>
+        <div class="val" style="font-size:0.78rem">Multnomah 48</div>
+      </div>
+      <div class="ov-card">
+        <div class="lbl">Statewide Dropout</div>
+        <div class="val">2.86%</div>
+      </div>
+    </div>
+    <p class="hint">Click any county to explore its data.</p>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SIDEBAR – COUNTY DETAIL
+// ══════════════════════════════════════════════════════════════
+
+function gradBoxClass(rate) {
+  if (rate == null) return '';
+  if (rate >= 85) return 'good';
+  if (rate >= 75) return 'warn';
+  return 'bad';
+}
+
+function showCountyDetail(p) {
+  const yrChange = (p.grad_rate_4yr != null && p.grad_rate_prior != null)
+    ? p.grad_rate_4yr - p.grad_rate_prior : null;
+
+  const yrArrow = yrChange == null ? ''
+    : yrChange >= 0
+      ? `<span style="color:#16a34a">▲ ${yrChange.toFixed(1)} pp</span>`
+      : `<span style="color:#dc2626">▼ ${Math.abs(yrChange).toFixed(1)} pp</span>`;
+
+  const vsState = p.grad_rate_4yr != null
+    ? (p.grad_rate_4yr - STATE_GRAD_RATE) : null;
+  const vsStateTxt = vsState == null ? ''
+    : `<span style="color:${vsState >= 0 ? '#16a34a' : '#dc2626'};font-size:0.68rem">
+         (${vsState >= 0 ? '+' : ''}${vsState.toFixed(1)} pp vs. state)
+       </span>`;
+
+  // Library breakdown (only non-zero types)
+  const libTypes = [
+    ['Public',    p.library_public],
+    ['Academic',  p.library_academic],
+    ['Special',   p.library_special],
+    ['Tribal',    p.library_tribal],
+    ['Volunteer', p.library_volunteer],
+    ['County Law',p.library_county_law],
+  ].filter(([, v]) => v > 0);
+
+  const libRows = libTypes.length
+    ? libTypes.map(([l, v]) => `<tr><td>${l}</td><td>${v}</td></tr>`).join('')
+    : '<tr><td colspan="2" style="color:#bbb">—</td></tr>';
+
+  // Demographic graduation rates
+  const demoRows = [
+    ['White',            p.grad_rate_white],
+    ['Hispanic/Latino',  p.grad_rate_hispanic],
+    ['Black/Afr. Amer.', p.grad_rate_black],
+    ['Native American',  p.grad_rate_native],
+    ['Asian',            p.grad_rate_asian],
+    ['Multi-Racial',     p.grad_rate_multiracial],
+    ['Students w/ Dis.', p.grad_rate_disabilities],
+    ['English Learners', p.grad_rate_ell],
+    ['Male',             p.grad_rate_male],
+    ['Female',           p.grad_rate_female],
+  ].map(([lbl, val]) => {
+    const disp = val == null
+      ? `<span class="null-val">—</span>`
+      : `${val.toFixed(1)}%`;
+    return `<tr><td>${lbl}</td><td>${disp}</td></tr>`;
+  }).join('');
+
+  document.getElementById('county-info').innerHTML = `
+    <button class="back-btn" onclick="deselect()">← Oregon overview</button>
+    <div class="info-title">${p.county_name} County</div>
+    <div class="info-sub">Adjusted cohort: ${p.adjusted_cohort != null ? p.adjusted_cohort.toLocaleString() + ' students' : '—'}</div>
+
+    <div class="stat-grid">
+      <div class="stat-box ${gradBoxClass(p.grad_rate_4yr)}">
+        <div class="lbl">4-Yr Grad Rate</div>
+        <div class="val">${fmtPct(p.grad_rate_4yr)}</div>
+        <div class="sub">${yrArrow}&nbsp;${vsStateTxt}</div>
+      </div>
+      <div class="stat-box">
+        <div class="lbl">Prior Year (23–24)</div>
+        <div class="val">${fmtPct(p.grad_rate_prior)}</div>
+      </div>
+      <div class="stat-box ${p.dropout_rate != null && p.dropout_rate > 5 ? 'bad' : p.dropout_rate != null && p.dropout_rate > 3 ? 'warn' : ''}">
+        <div class="lbl">Dropout Rate</div>
+        <div class="val">${fmtPct(p.dropout_rate, 2)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="lbl">Libraries</div>
+        <div class="val">${p.library_count}</div>
+        <div class="sub">${p.libraries_per_1k_students != null ? p.libraries_per_1k_students.toFixed(2) + ' / 1k stu.' : ''}</div>
+      </div>
+    </div>
+
+    <div class="sec-head">Library Breakdown</div>
+    <table class="dtable">${libRows}</table>
+
+    <div class="sec-head">Graduation Rate by Group</div>
+    <table class="dtable">${demoRows}</table>
+  `;
+}
+
+function deselect() {
+  if (selectedLayer) {
+    countyLayer.resetStyle(selectedLayer);
+    selectedLayer = null;
+  }
+  showOverview();
+  highlightScatterPoint(null);
+}
+</script>
+
+</body>
+</html>
