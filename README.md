@@ -60,10 +60,15 @@ This project joins three datasets — Oregon county boundaries, the Oregon State
 ## Methodology
 
 **Unit of analysis:** Oregon county (n = 36)
+
 **Graduation rate:** The *4-year cohort graduation rate* counts students who earned an Oregon diploma within four years of entering ninth grade, divided by the adjusted cohort (entrants minus transfers out, plus transfers in). This is the standard ODE metric and excludes extended diplomas and GED completers from the numerator.
+
 **Student group:** All analyses use the "All Students" aggregate unless noted in the demographic breakdown panel. Demographic subgroup rates are suppressed by ODE when the cohort is fewer than 10 students, displayed as "—" in the map.
+
 **Library count:** Sum of all library features in the Oregon Library Directory for each county, regardless of type (public, academic, special, tribal, volunteer). Libraries per 1,000 students uses the dropout file's "Fall Membership" (enrolled students) as the denominator.
+
 **Spatial join:** County boundaries joined to library and education data using normalized county name string matching (plain county name, case-insensitive).
+
 **Correlation:** Pearson r computed client-side over the 36 county data points displayed in the scatter plot. Counties with suppressed graduation data are excluded (none in 2024–25).
 
 ---
